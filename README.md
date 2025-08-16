@@ -4,6 +4,10 @@
 
 A sophisticated job and candidate matching system that combines AI-powered semantic search with precision filtering for highly accurate recruitment results. This project demonstrates advanced AI/ML implementation, full-stack development skills, and innovative problem-solving approaches.
 
+## 🎥 Demo Video
+
+https://youtu.be/MJJeIjysvoc
+
 ## 🚀 Features
 
 ### Core Functionalities
@@ -279,10 +283,6 @@ CMD ["npm", "start"]
 ## 📝 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🎥 Demo Video
-
-[Link to demo video showing core features]
 
 ## 📞 Support
 
