@@ -3,7 +3,6 @@ const nlp = require('compromise');
 
 class MatchingEngine {
   constructor() {
-    this.tfidf = new natural.TfIdf();
     this.tokenizer = new natural.WordTokenizer();
   }
 
@@ -18,44 +17,70 @@ class MatchingEngine {
     const doc = nlp(query.toLowerCase());
     const filters = {};
 
-    const skills = doc.match('#Noun+ (developer|engineer|programmer|analyst|manager)').out('array');
-    if (skills.length > 0) {
-      filters.skills = skills.map(s => s.replace(/\s+(developer|engineer|programmer|analyst|manager)/, ''));
+    // Extract skills with better patterns
+    const skillPatterns = [
+      '#Noun+ (developer|engineer|programmer|analyst|manager|specialist)',
+      '(python|java|javascript|react|node|angular|vue|mongodb|sql|aws|docker|kubernetes)',
+      'software engineering|web development|mobile development|data science|machine learning'
+    ];
+    
+    for (const pattern of skillPatterns) {
+      const skills = doc.match(pattern).out('array');
+      if (skills.length > 0) {
+        filters.skills = skills.map(s => s.replace(/\s+(developer|engineer|programmer|analyst|manager|specialist)/, ''));
+        break;
+      }
     }
 
-    const locations = doc.match('(in|from|at) #Place+').out('array');
+    // Extract locations
+    const locations = doc.match('(in|from|at|for) #Place+').out('array');
     if (locations.length > 0) {
-      filters.location = locations[0].replace(/(in|from|at)\s+/, '');
+      filters.location = locations[0].replace(/(in|from|at|for)\s+/, '');
     }
 
-    const experience = doc.match('#Number+ (year|years)').out('array');
+    // Extract experience requirements
+    const experience = doc.match('#Number+ (year|years|yr|yrs)').out('array');
     if (experience.length > 0) {
       const exp = experience[0].match(/#Number+/).out('array')[0];
       filters.experience = parseInt(exp);
     }
 
-    const education = doc.match('(undergraduate|graduate|phd|bachelor|master)').out('array');
-    if (education.length > 0) {
-      filters.educationLevel = education[0];
+    // Extract education level
+    const educationLevels = doc.match('(undergraduate|graduate|phd|bachelor|master|b.tech|m.tech|b.e|m.e)').out('array');
+    if (educationLevels.length > 0) {
+      const level = educationLevels[0];
+      if (level.includes('b.tech') || level.includes('b.e') || level.includes('bachelor')) {
+        filters.educationLevel = 'Bachelors';
+      } else if (level.includes('m.tech') || level.includes('m.e') || level.includes('master')) {
+        filters.educationLevel = 'Masters';
+      } else if (level.includes('phd')) {
+        filters.educationLevel = 'PhD';
+      } else {
+        filters.educationLevel = level;
+      }
     }
 
-    const institutions = doc.match('(IIT|IIM|NIT|university|college)').out('array');
+    // Extract institutions (IIT, IIM, etc.)
+    const institutions = doc.match('(iit|iim|nit|university|college|institute|bits|srm|vit|jiit)').out('array');
     if (institutions.length > 0) {
       filters.institution = institutions[0];
     }
 
-    const salary = doc.match('(above|more than|over) #Number+ (LPA|lakh|lpa)').out('array');
+    // Extract salary requirements
+    const salary = doc.match('(above|more than|over|paying) #Number+ (lpa|lakh|lpa|salary)').out('array');
     if (salary.length > 0) {
       const sal = salary[0].match(/#Number+/).out('array')[0];
       filters.minSalary = parseInt(sal);
     }
 
-    const remote = doc.match('remote').out('array');
+    // Extract remote preference
+    const remote = doc.match('remote|work from home|wfh').out('array');
     if (remote.length > 0) {
       filters.remote = true;
     }
 
-    const immediate = doc.match('(immediately|immediate|join now)').out('array');
+    // Extract immediate joining preference
+    const immediate = doc.match('(immediately|immediate|join now|urgent|asap)').out('array');
     if (immediate.length > 0) {
       filters.immediateJoining = true;
     }
@@ -64,15 +89,30 @@ class MatchingEngine {
   }
 
   calculateTFIDF(text, corpus) {
-    this.tfidf.addDocument(text);
-    corpus.forEach(doc => this.tfidf.addDocument(doc));
+    const tfidf = new natural.TfIdf();
+    
+    // Add the query text
+    tfidf.addDocument(text);
+    
+    // Add corpus documents
+    corpus.forEach(doc => tfidf.addDocument(doc));
     
     const scores = {};
-    this.tfidf.listTerms(0).forEach(item => {
-      scores[item.term] = item.score;
-    });
+    try {
+      const terms = tfidf.listTerms(0);
+      terms.forEach(item => {
+        scores[item.term] = item.score;
+      });
+    } catch (error) {
+      // Fallback if listTerms fails
+      const words = this.tokenizer.tokenize(text);
+      words.forEach(word => {
+        if (word.length > 2) {
+          scores[word] = 1;
+        }
+      });
+    }
     
-    this.tfidf.reset();
     return scores;
   }
 
@@ -98,20 +138,46 @@ class MatchingEngine {
     const queryTokens = this.tokenizer.tokenize(queryText);
     
     const scores = documents.map((doc, index) => {
-      const docText = this.preprocessText(doc.text || doc.description || '');
+      // Create a comprehensive text representation of the document
+      const docText = this.preprocessText(
+        (doc.text || '') + ' ' + 
+        (doc.description || '') + ' ' + 
+        (doc.title || '') + ' ' + 
+        (doc.name || '') + ' ' +
+        (doc.skills ? doc.skills.map(s => typeof s === 'string' ? s : s.name).join(' ') : '') + ' ' +
+        (doc.requirements?.skills ? doc.requirements.skills.join(' ') : '') + ' ' +
+        (doc.location || '') + ' ' +
+        (doc.company || '')
+      );
+      
       const docTokens = this.tokenizer.tokenize(docText);
       
-      const queryTFIDF = this.calculateTFIDF(queryText, [docText]);
-      const docTFIDF = this.calculateTFIDF(docText, [queryText]);
-      
+      // Calculate similarity based on token overlap and exact matches
       let similarity = 0;
+      let totalScore = 0;
+      
       queryTokens.forEach(token => {
-        if (docTokens.includes(token)) {
-          similarity += (queryTFIDF[token] || 0) * (docTFIDF[token] || 0);
+        if (token.length > 2) {
+          // Exact match gets highest score
+          if (docTokens.includes(token)) {
+            similarity += 3;
+          } else {
+            // Check for partial matches
+            const partialMatches = docTokens.filter(docToken => 
+              docToken.includes(token) || token.includes(docToken)
+            );
+            if (partialMatches.length > 0) {
+              similarity += 1;
+            }
+          }
+          totalScore += 1;
         }
       });
       
-      return { index, score: similarity, document: doc };
+      // Normalize score
+      const finalScore = totalScore > 0 ? similarity / totalScore : 0;
+      
+      return { index, score: finalScore, document: doc };
     });
     
     return scores
@@ -124,22 +190,27 @@ class MatchingEngine {
     return results.filter(result => {
       const doc = result.document;
       
+      // Skills filter
       if (filters.skills && filters.skills.length > 0) {
         const docSkills = doc.skills || doc.requirements?.skills || [];
+        const docSkillNames = docSkills.map(s => typeof s === 'string' ? s.toLowerCase() : s.name.toLowerCase());
+        
         if (!filters.skills.some(skill => 
-          docSkills.some(ds => ds.toLowerCase().includes(skill.toLowerCase()) || 
-          (typeof ds === 'object' && ds.name && ds.name.toLowerCase().includes(skill.toLowerCase())))
+          docSkillNames.some(ds => ds.includes(skill.toLowerCase()))
         )) {
           return false;
         }
       }
       
+      // Location filter
       if (filters.location) {
-        if (!doc.location.toLowerCase().includes(filters.location.toLowerCase())) {
+        const docLocation = (doc.location || '').toLowerCase();
+        if (!docLocation.includes(filters.location.toLowerCase())) {
           return false;
         }
       }
       
+      // Experience filter
       if (filters.experience) {
         const docExp = doc.experience?.total || doc.requirements?.experience?.min || 0;
         if (docExp < filters.experience) {
@@ -147,6 +218,7 @@ class MatchingEngine {
         }
       }
       
+      // Education level filter
       if (filters.educationLevel) {
         const docEdu = doc.education || doc.requirements?.education;
         if (docEdu) {
@@ -157,6 +229,7 @@ class MatchingEngine {
         }
       }
       
+      // Institution filter
       if (filters.institution) {
         const docEdu = doc.education || doc.requirements?.education;
         if (docEdu) {
@@ -167,6 +240,7 @@ class MatchingEngine {
         }
       }
       
+      // Salary filter
       if (filters.minSalary) {
         const docSalary = doc.salary?.min || doc.expectedSalary?.min || 0;
         if (docSalary < filters.minSalary) {
@@ -174,12 +248,14 @@ class MatchingEngine {
         }
       }
       
+      // Remote filter
       if (filters.remote !== undefined) {
         if (doc.remote !== filters.remote) {
           return false;
         }
       }
       
+      // Immediate joining filter
       if (filters.immediateJoining) {
         if (doc.immediateJoining !== true && doc.availability !== 'immediate') {
           return false;
@@ -192,8 +268,13 @@ class MatchingEngine {
 
   hybridSearch(query, documents, topK = 20) {
     const filters = this.extractFilters(query);
+    console.log('Extracted filters:', filters); // Debug log
+    
     const semanticResults = this.semanticSearch(query, documents, topK * 2);
+    console.log('Semantic results count:', semanticResults.length); // Debug log
+    
     const filteredResults = this.applyStrictFilters(semanticResults, filters);
+    console.log('Filtered results count:', filteredResults.length); // Debug log
     
     return {
       results: filteredResults.slice(0, topK),

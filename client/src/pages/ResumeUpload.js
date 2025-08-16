@@ -1,14 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Download, UserPlus } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const ResumeUpload = () => {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [parsedData, setParsedData] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const navigate = useNavigate();
 
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0];
@@ -77,6 +80,46 @@ const ResumeUpload = () => {
     }
   };
 
+  const handleCreateProfile = async () => {
+    if (!parsedData) return;
+    
+    setIsCreatingProfile(true);
+    try {
+      // Transform parsed data to match candidate schema
+      const candidateData = {
+        name: parsedData.name || 'Unknown',
+        email: parsedData.email || 'no-email@example.com',
+        phone: parsedData.phone || '',
+        location: parsedData.location || 'Unknown',
+        skills: parsedData.skills || [],
+        experience: {
+          total: parsedData.experience?.total || 0,
+          details: parsedData.experience?.details || []
+        },
+        education: parsedData.education || [],
+        availability: 'negotiable',
+        expectedSalary: {
+          min: 0,
+          max: 0,
+          currency: 'INR'
+        }
+      };
+
+      const response = await axios.post('/api/candidates', candidateData);
+      
+      if (response.data) {
+        toast.success('Candidate profile created successfully!');
+        // Navigate to the new candidate profile
+        navigate(`/candidates/${response.data._id}`);
+      }
+    } catch (error) {
+      console.error('Profile creation error:', error);
+      toast.error(error.response?.data?.error || 'Failed to create candidate profile');
+    } finally {
+      setIsCreatingProfile(false);
+    }
+  };
+
   const downloadSampleResume = () => {
     const sampleData = `Name: John Doe
 Email: john.doe@email.com
@@ -108,10 +151,10 @@ B.Tech in Computer Science from IIT Delhi (2018)`;
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <h1 className="section-title mb-4">
           Upload Your Resume
         </h1>
-        <p className="text-lg text-gray-600">
+        <p className="section-subtitle">
           Let AI automatically extract your skills, experience, and education
         </p>
       </div>
@@ -308,8 +351,22 @@ B.Tech in Computer Science from IIT Delhi (2018)`;
                 )}
               </div>
 
-              <button className="w-full btn-primary">
-                Create Candidate Profile
+              <button 
+                onClick={handleCreateProfile}
+                disabled={isCreatingProfile}
+                className="w-full btn-primary flex items-center justify-center space-x-2"
+              >
+                {isCreatingProfile ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Creating Profile...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-4 w-4" />
+                    <span>Create Candidate Profile</span>
+                  </>
+                )}
               </button>
             </div>
           ) : (

@@ -1,6 +1,8 @@
 # Smart Job Matcher - AI-Powered Recruitment Platform
 
-A sophisticated job and candidate matching system that combines AI-powered semantic search with precision filtering for highly accurate recruitment results.
+**Made by: Satvik Pandey for Eraah Internship Assignment**
+
+A sophisticated job and candidate matching system that combines AI-powered semantic search with precision filtering for highly accurate recruitment results. This project demonstrates advanced AI/ML implementation, full-stack development skills, and innovative problem-solving approaches.
 
 ## 🚀 Features
 
@@ -290,4 +292,6 @@ For questions and support, please contact:
 
 ---
 
-**Built with ❤️ for the Eraah Internship Assignment**
+**Built with ❤️ by Satvik Pandey for the Eraah Internship Assignment**
+
+This project showcases advanced AI/ML implementation, full-stack development expertise, and innovative problem-solving approaches in the recruitment technology domain.
