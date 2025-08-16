@@ -287,7 +287,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 📞 Support
 
 For questions and support, please contact:
-- Email: support@smartjobmatcher.com
+- Email: satvikofficial20@gmail.com
 - GitHub Issues: [Repository Issues](https://github.com/your-repo/issues)
 
 ---
